@@ -1,3 +1,4 @@
+import { getAllUserService, updateUserRoleService } from './../service/user.service';
 import sendMail from "../utils/sendMail";
 import { NextFunction, Request, Response } from "express";
 import userModel, { IUser } from "../models/user.model";
@@ -190,6 +191,7 @@ export const updateAccessToken = CatchAsyncError(async (req: Request, res: Respo
         res.cookie('access_token', accessToken, accessTokenOptions)
         res.cookie('refresh_token', refreshToken, refreshTokenOptions)
 
+        await redis.set(user._id, JSON.stringify(user), "EX", 604800)
         res.status(200).json({
             status: "success",
             accessToken
@@ -347,5 +349,47 @@ export const updateProfilePicture = CatchAsyncError(async (req: Request, res: Re
         })
     } catch (error: any) {
         return next(new ErrorHandler(error.message, 400));
+    }
+})
+
+//get all users --- only for admin
+
+export const getAllUsers = CatchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        getAllUserService(res)
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 400))
+    }
+})
+
+
+//update user roll --- only for admin
+
+export const updateUserRole = CatchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id, role } = req.body;
+        updateUserRoleService(res, id, role)
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 400))
+    }
+})
+
+//delete user --- only for admin
+export const deleteUser = CatchAsyncError(async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+        const user = await userModel.findById(id);
+        if (!user) {
+            return next(new ErrorHandler("User not found", 400));
+        }
+        await user.deleteOne({ id });
+        await redis.del(id);
+
+        res.status(200).json({
+            success: true,
+            message: "User deleted successfully"
+        })
+    } catch (error: any) {
+        return next(new ErrorHandler(error.message, 400))
     }
 })
